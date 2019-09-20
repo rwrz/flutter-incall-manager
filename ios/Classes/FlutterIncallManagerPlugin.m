@@ -361,13 +361,13 @@ ringbackUriType:(NSString *)ringbackUriType
             if (!success)  NSLog(@"Cannot set mode due to error: %@", error);
             [_audioSession setPreferredOutputNumberOfChannels:0 error:nil];
             if (!success)  NSLog(@"Port override failed due to: %@", error);
-            [_audioSession overrideOutputAudioPort:AVAudioSessionPortBuiltInReceiver error:&error];
+            [_audioSession overrideOutputAudioPort:AVAudioSessionPortOverrideNone error:&error];
             success = [_audioSession setActive:YES error:&error];
             if (!success) NSLog(@"Audio session override failed: %@", error);
             else NSLog(@"AudioSession override is successful ");
 
         } @catch (NSException *e) {
-            NSLog(@"Error occurred while routing audio via Earpiece", e.reason);
+            NSLog(@"Error occurred while routing audio via Earpiece. Reason: %@", e.reason);
         }
     } else {
         NSLog(@"Routing audio via Loudspeaker");
@@ -380,7 +380,7 @@ ringbackUriType:(NSString *)ringbackUriType
             success = [_audioSession setMode:AVAudioSessionModeVoiceChat error: &error];
             if (!success)  NSLog(@"Cannot set mode due to error: %@", error);
             [_audioSession setPreferredOutputNumberOfChannels:0 error:nil];
-            [_audioSession overrideOutputAudioPort:AVAudioSessionPortBuiltInSpeaker error: &error];
+            [_audioSession overrideOutputAudioPort:AVAudioSessionPortOverrideSpeaker error: &error];
             if (!success)  NSLog(@"Port override failed due to: %@", error);
             success = [_audioSession setActive:YES error:&error];
             if (!success) NSLog(@"Audio session override failed: %@", error);
@@ -884,7 +884,7 @@ ringbackUriType:(NSString *)ringbackUriType
                                           if (state != self->_proximityIsNear) {
                                               NSLog(@"FlutterInCallManager.UIDeviceProximityStateDidChangeNotification(): isNear: %@", state ? @"YES" : @"NO");
                                               self->_proximityIsNear = state;
-                                              
+
                                               //dispatch proximity event
                                               FlutterEventSink eventSink = self->incallEvent.eventSink;
                                               if(eventSink){
