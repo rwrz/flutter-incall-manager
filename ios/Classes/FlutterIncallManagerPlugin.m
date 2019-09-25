@@ -512,10 +512,10 @@ ringbackUriType:(NSString *)ringbackUriType
 
 - (void) stopRingtone
 {
-    if (_ringtone != nil) {
+    if (self->_ringtone != nil) {
         NSLog(@"FlutterInCallManager.stopRingtone()");
-        [_ringtone stop];
-        _ringtone = nil;
+        [self->_ringtone stop];
+        self->_ringtone = nil;
         [self restoreOriginalAudioSetup];
         [self audioSessionSetActive:NO
                             options:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
@@ -642,6 +642,14 @@ ringbackUriType:(NSString *)ringbackUriType
     }
     flutterResult(@{@"uri": @""});
     //reject(@"error_code", @"getAudioUriJS() failed", RCTErrorWithMessage(@"getAudioUriJS() failed"));
+}
+
+- (void) getIsWiredHeadsetPluggedIn:(FlutterResult)flutterResult
+{
+    BOOL wiredHeadsetPluggedIn = [self isWiredHeadsetPluggedIn];
+    flutterResult(@{
+        @"isWiredHeadsetPluggedIn": wiredHeadsetPluggedIn ? @YES : @NO,
+    });
 }
 
 - (void)updateAudioRoute
@@ -877,7 +885,7 @@ ringbackUriType:(NSString *)ringbackUriType
         if (state != strongSelf->_proximityIsNear) {
             NSLog(@"FlutterInCallManager.UIDeviceProximityStateDidChangeNotification(): isNear: %@", state ? @"YES" : @"NO");
             strongSelf->_proximityIsNear = state;
-            
+
             //dispatch proximity event
             FlutterEventSink eventSink = strongSelf->incallEvent.eventSink;
             if(eventSink){
@@ -991,7 +999,7 @@ ringbackUriType:(NSString *)ringbackUriType
                  name: AVAudioSessionRouteChangeNotification
                object: nil];
     
-    
+
     __weak FlutterIncallManagerPlugin *weakSelf = self;
     _audioSessionRouteChangeObserver = [self startObserve:AVAudioSessionRouteChangeNotification
                                                    object: nil
@@ -1002,10 +1010,10 @@ ringbackUriType:(NSString *)ringbackUriType
             || ![notification.name isEqualToString:AVAudioSessionRouteChangeNotification]) {
             return;
         }
-        
+
         NSNumber *routeChangeType = [notification.userInfo objectForKey:@"AVAudioSessionRouteChangeReasonKey"];
         NSUInteger routeChangeTypeValue = [routeChangeType unsignedIntegerValue];
-        
+
         switch (routeChangeTypeValue) {
             case AVAudioSessionRouteChangeReasonUnknown:
                 NSLog(@"FlutterInCallManager.AudioRouteChange.Reason: Unknown");
@@ -1014,7 +1022,7 @@ ringbackUriType:(NSString *)ringbackUriType
                 NSLog(@"FlutterInCallManager.AudioRouteChange.Reason: NewDeviceAvailable");
                 if ([self checkAudioRoute:@[AVAudioSessionPortHeadsetMic]
                                 routeType:@"input"]) {
-                    
+
                     //dispatch WiredHeadset event
                     FlutterEventSink eventSink = strongSelf->incallEvent.eventSink;
                     if(eventSink){
@@ -1025,7 +1033,7 @@ ringbackUriType:(NSString *)ringbackUriType
                             @"deviceName":AVAudioSessionPortHeadsetMic
                         });
                     }
-                    
+
                 } else if ([self checkAudioRoute:@[AVAudioSessionPortHeadphones]
                                        routeType:@"output"]) {
                     //dispatch WiredHeadset event
@@ -1043,7 +1051,7 @@ ringbackUriType:(NSString *)ringbackUriType
             case AVAudioSessionRouteChangeReasonOldDeviceUnavailable:
                 NSLog(@"FlutterInCallManager.AudioRouteChange.Reason: OldDeviceUnavailable");
                 if (![self isWiredHeadsetPluggedIn]) {
-                    
+
                     FlutterEventSink eventSink = strongSelf->incallEvent.eventSink;
                     if(eventSink){
                         eventSink(@{
@@ -1075,7 +1083,7 @@ ringbackUriType:(NSString *)ringbackUriType
                 NSLog(@"FlutterInCallManager.AudioRouteChange.Reason: Unknow Value");
                 break;
         }
-        
+
         NSNumber *silenceSecondaryAudioHintType = [notification.userInfo objectForKey:@"AVAudioSessionSilenceSecondaryAudioHintTypeKey"];
         NSUInteger silenceSecondaryAudioHintTypeValue = [silenceSecondaryAudioHintType unsignedIntegerValue];
         switch (silenceSecondaryAudioHintTypeValue) {
@@ -1426,4 +1434,3 @@ ringbackUriType:(NSString *)ringbackUriType
 }
 
 @end
-
