@@ -243,21 +243,21 @@ ringbackUriType:(NSString *)ringbackUriType
     if (_audioSessionInitialized) {
         return;
     }
-    
+
     if(_recordPermission == nil) {
         [self _checkRecordPermission];
     }
-    
+
     if (![_recordPermission isEqualToString:@"granted"]) {
         NSLog(@"FlutterInCallManager.start(): recordPermission should be granted. current state: %@", _recordPermission);
         return;
     }
-    
+
     if ([mediaType isEqualToString:@"video"]) {
         if(_cameraPermission == nil) {
             [self _checkCameraPermission];
         }
-        
+
         if (![_cameraPermission isEqualToString:@"granted"]) {
             NSLog(@"FlutterInCallManager.start(): cameraPermission should be granted. current state: %@", _cameraPermission);
             return;
@@ -530,10 +530,10 @@ ringbackUriType:(NSString *)ringbackUriType
 
 - (void) stopRingtone
 {
-    if (_ringtone != nil) {
+    if (self->_ringtone != nil) {
         NSLog(@"FlutterInCallManager.stopRingtone()");
-        [_ringtone stop];
-        _ringtone = nil;
+        [self->_ringtone stop];
+        self->_ringtone = nil;
         [self restoreOriginalAudioSetup];
         [self audioSessionSetActive:NO
                             options:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
@@ -856,7 +856,7 @@ ringbackUriType:(NSString *)ringbackUriType
     [self stopObserve:_proximityObserver
                  name:UIDeviceProximityStateDidChangeNotification
                object:nil];
-    
+
     __weak FlutterIncallManagerPlugin *weakSelf = self;
     _proximityObserver = [self startObserve:UIDeviceProximityStateDidChangeNotification
                                      object:_currentDevice
@@ -978,8 +978,8 @@ ringbackUriType:(NSString *)ringbackUriType
     [self stopObserve:_audioSessionRouteChangeObserver
                  name: AVAudioSessionRouteChangeNotification
                object: nil];
-    
-    
+
+
     __weak FlutterIncallManagerPlugin *weakSelf = self;
     _audioSessionRouteChangeObserver = [self startObserve:AVAudioSessionRouteChangeNotification
                                                    object: nil
@@ -990,10 +990,10 @@ ringbackUriType:(NSString *)ringbackUriType
             || ![notification.name isEqualToString:AVAudioSessionRouteChangeNotification]) {
             return;
         }
-        
+
         NSNumber *routeChangeType = [notification.userInfo objectForKey:@"AVAudioSessionRouteChangeReasonKey"];
         NSUInteger routeChangeTypeValue = [routeChangeType unsignedIntegerValue];
-        
+
         switch (routeChangeTypeValue) {
             case AVAudioSessionRouteChangeReasonUnknown:
                 NSLog(@"FlutterInCallManager.AudioRouteChange.Reason: Unknown");
@@ -1002,7 +1002,7 @@ ringbackUriType:(NSString *)ringbackUriType
                 NSLog(@"FlutterInCallManager.AudioRouteChange.Reason: NewDeviceAvailable");
                 if ([self checkAudioRoute:@[AVAudioSessionPortHeadsetMic]
                                 routeType:@"input"]) {
-                    
+
                     //dispatch WiredHeadset event
                     FlutterEventSink eventSink = strongSelf->_eventSink;
                     if(eventSink){
@@ -1013,7 +1013,7 @@ ringbackUriType:(NSString *)ringbackUriType
                             @"deviceName":AVAudioSessionPortHeadsetMic
                         });
                     }
-                    
+
                 } else if ([self checkAudioRoute:@[AVAudioSessionPortHeadphones]
                                        routeType:@"output"]) {
                     //dispatch WiredHeadset event
@@ -1031,7 +1031,7 @@ ringbackUriType:(NSString *)ringbackUriType
             case AVAudioSessionRouteChangeReasonOldDeviceUnavailable:
                 NSLog(@"FlutterInCallManager.AudioRouteChange.Reason: OldDeviceUnavailable");
                 if (![self isWiredHeadsetPluggedIn]) {
-                    
+
                     FlutterEventSink eventSink = strongSelf->_eventSink;
                     if(eventSink){
                         eventSink(@{
@@ -1063,7 +1063,7 @@ ringbackUriType:(NSString *)ringbackUriType
                 NSLog(@"FlutterInCallManager.AudioRouteChange.Reason: Unknow Value");
                 break;
         }
-        
+
         NSNumber *silenceSecondaryAudioHintType = [notification.userInfo objectForKey:@"AVAudioSessionSilenceSecondaryAudioHintTypeKey"];
         NSUInteger silenceSecondaryAudioHintTypeValue = [silenceSecondaryAudioHintType unsignedIntegerValue];
         switch (silenceSecondaryAudioHintTypeValue) {
@@ -1414,4 +1414,3 @@ ringbackUriType:(NSString *)ringbackUriType
 }
 
 @end
-
