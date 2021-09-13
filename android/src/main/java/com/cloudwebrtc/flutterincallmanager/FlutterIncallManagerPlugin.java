@@ -1,4 +1,4 @@
-cpackage com.cloudwebrtc.flutterincallmanager;
+package com.cloudwebrtc.flutterincallmanager;
 
 import android.Manifest.permission;
 import android.app.Activity;
