@@ -1,34 +1,21 @@
-package com.cloudwebrtc.flutterincallmanager;
+cpackage com.cloudwebrtc.flutterincallmanager;
 
-import io.flutter.plugin.common.EventChannel;
-import io.flutter.plugin.common.MethodChannel;
-import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
-import io.flutter.plugin.common.MethodChannel.Result;
-import io.flutter.plugin.common.MethodCall;
-import io.flutter.plugin.common.PluginRegistry.Registrar;
-
+import android.Manifest.permission;
 import android.app.Activity;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.BroadcastReceiver;
 import android.content.pm.PackageManager;
-import android.Manifest.permission;
-//import android.media.AudioAttributes; // --- for API 21+
-import android.media.AudioManager;
 import android.media.AudioDeviceInfo;
+import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.media.ToneGenerator;
 import android.net.Uri;
-import android.os.PowerManager;
 import android.os.Build;
 import android.os.Handler;
+import android.os.PowerManager;
 import android.provider.Settings;
-
-import androidx.annotation.Nullable;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-
 import android.util.Log;
 import android.util.SparseArray;
 import android.view.Display;
@@ -36,24 +23,37 @@ import android.view.KeyEvent;
 import android.view.Window;
 import android.view.WindowManager;
 
-
-import java.lang.Runnable;
-import java.io.File;
-import java.util.Collections;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Random;
-import java.util.Set;
+import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import com.cloudwebrtc.flutterincallmanager.AppRTC.AppRTCBluetoothManager;
 import com.cloudwebrtc.flutterincallmanager.utils.ConstraintsMap;
+
+import java.io.File;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+
+import io.flutter.embedding.engine.plugins.FlutterPlugin;
+import io.flutter.embedding.engine.plugins.activity.ActivityAware;
+import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding;
+import io.flutter.plugin.common.BinaryMessenger;
+import io.flutter.plugin.common.EventChannel;
+import io.flutter.plugin.common.MethodCall;
+import io.flutter.plugin.common.MethodChannel;
+import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
+import io.flutter.plugin.common.MethodChannel.Result;
+import io.flutter.plugin.common.PluginRegistry.Registrar;
 
 
 /**
  * FlutterIncallManagerPlugin
  */
-public class FlutterIncallManagerPlugin implements MethodCallHandler {
+public class FlutterIncallManagerPlugin implements FlutterPlugin, ActivityAware, MethodCallHandler {
 
     private static final String TAG = "InCallManager";
     private static SparseArray<String> mRequestPermissionCodeTargetPermission;
@@ -105,6 +105,54 @@ public class FlutterIncallManagerPlugin implements MethodCallHandler {
     private static final String SPEAKERPHONE_TRUE = "true";
     private static final String SPEAKERPHONE_FALSE = "false";
 
+    // flutter variables
+    private Activity mActivity;
+    private Context mContext;
+    private EventChannel.EventSink eventSink = null;
+    private boolean mInitialized = false;
+
+    @Override
+    public void onAttachedToEngine(@NonNull FlutterPluginBinding flutterPluginBinding) {
+        final MethodChannel channel = new MethodChannel(flutterPluginBinding.getBinaryMessenger(), "FlutterInCallManager.Method");
+
+        if (!mInitialized) {
+            this.initialize(
+                    flutterPluginBinding.getBinaryMessenger(),
+                    channel,
+                    flutterPluginBinding.getApplicationContext(),
+                    null
+            );
+            mInitialized = true;
+        }
+
+        channel.setMethodCallHandler(this);
+    }
+
+    @Override
+    public void onDetachedFromEngine(@NonNull FlutterPluginBinding flutterPluginBinding) {
+
+    }
+
+    @Override
+    public void onAttachedToActivity(@NonNull ActivityPluginBinding activityPluginBinding) {
+        mActivity = activityPluginBinding.getActivity();
+    }
+
+    @Override
+    public void onDetachedFromActivityForConfigChanges() {
+        mActivity = null;
+    }
+
+    @Override
+    public void onReattachedToActivityForConfigChanges(@NonNull ActivityPluginBinding activityPluginBinding) {
+        mActivity = activityPluginBinding.getActivity();
+    }
+
+    @Override
+    public void onDetachedFromActivity() {
+        mActivity = null;
+    }
+
     /**
      * AudioDevice is the names of possible audio devices that we currently
      * support.
@@ -145,15 +193,15 @@ public class FlutterIncallManagerPlugin implements MethodCallHandler {
     private AudioDevice userSelectedAudioDevice;
 
     // Contains speakerphone setting: auto, true or false
-    private final String useSpeakerphone = SPEAKERPHONE_AUTO;
+    private String useSpeakerphone = SPEAKERPHONE_AUTO;
 
     // Handles all tasks related to Bluetooth headset devices.
-    private final AppRTCBluetoothManager bluetoothManager;
+    private AppRTCBluetoothManager bluetoothManager;
 
     //ProximityManager
-    private final InCallProximityManager proximityManager;
+    private InCallProximityManager proximityManager;
 
-    private final InCallWakeLockUtils wakeLockUtils;
+    private InCallWakeLockUtils wakeLockUtils;
 
     // Contains a list of available audio devices. A Set collection is used to
     // avoid duplicate elements.
@@ -164,13 +212,11 @@ public class FlutterIncallManagerPlugin implements MethodCallHandler {
 
     interface MyPlayerInterface {
         public boolean isPlaying();
+
         public void startPlay(Map<String, Object> data);
+
         public void stopPlay();
     }
-
-    private final Registrar registrar;
-    private final MethodChannel channel;
-    private EventChannel.EventSink eventSink = null;
 
     private EventChannel.StreamHandler streamHandler = new EventChannel.StreamHandler() {
         @Override
@@ -184,26 +230,26 @@ public class FlutterIncallManagerPlugin implements MethodCallHandler {
         }
     };
 
-    public Registrar registrar() {
-        return this.registrar;
-    }
-
     public Activity getActivity() {
-        return registrar.activity();
+        return mActivity;
     }
 
     public Context getContext() {
-        return registrar.context();
+        return mContext;
     }
 
     public static void registerWith(Registrar registrar) {
         final MethodChannel channel = new MethodChannel(registrar.messenger(), "FlutterInCallManager.Method");
-        channel.setMethodCallHandler(new FlutterIncallManagerPlugin(registrar, channel));
+        FlutterIncallManagerPlugin plugin = new FlutterIncallManagerPlugin();
+        plugin.initialize(registrar.messenger(), channel, registrar.context(), registrar.activity());
+        channel.setMethodCallHandler(plugin);
     }
 
-    private FlutterIncallManagerPlugin(Registrar registrar, MethodChannel channel) {
-        this.registrar = registrar;
-        this.channel = channel;
+    private void initialize(BinaryMessenger binaryMessenger, MethodChannel channel, Context context, Activity activity) {
+        if (activity != null) {
+            mActivity = activity;
+        }
+        mContext = context;
         mWindowManager = (WindowManager) getContext().getSystemService(Context.WINDOW_SERVICE);
         mPowerManager = (PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
         mPackageName = getContext().getPackageName();
@@ -219,10 +265,10 @@ public class FlutterIncallManagerPlugin implements MethodCallHandler {
         audioUriMap.put("bundleBusytoneUri", bundleBusytoneUri);
         mRequestPermissionCodeTargetPermission = new SparseArray<String>();
         mOnFocusChangeListener = new OnFocusChangeListener();
-        bluetoothManager = AppRTCBluetoothManager.create(getContext(), this);
-        proximityManager = InCallProximityManager.create(getContext(), this);
-        wakeLockUtils = new InCallWakeLockUtils(getContext());
-        EventChannel eventChannel = new EventChannel(registrar.messenger(), "FlutterInCallManager.Event");
+        bluetoothManager = AppRTCBluetoothManager.create(context, this);
+        proximityManager = InCallProximityManager.create(context, this);
+        wakeLockUtils = new InCallWakeLockUtils(context);
+        EventChannel eventChannel = new EventChannel(binaryMessenger, "FlutterInCallManager.Event");
         eventChannel.setStreamHandler(streamHandler);
         Log.d(TAG, "InCallManager initialized");
     }
@@ -288,13 +334,13 @@ public class FlutterIncallManagerPlugin implements MethodCallHandler {
             requestCameraPermission(result);
         } else if (call.method.equals("enableProximitySensor")) {
             Boolean enabled = call.argument("enabled");
-            if(enabled) {
+            if (enabled) {
                 startProximitySensor();
             } else {
                 stopProximitySensor();
             }
             result.success(null);
-        }else {
+        } else {
             result.notImplemented();
         }
     }
@@ -331,27 +377,27 @@ public class FlutterIncallManagerPlugin implements MethodCallHandler {
                 @Override
                 public void onReceive(Context context, Intent intent) {
                     if (ACTION_HEADSET_PLUG.equals(intent.getAction())) {
-            boolean wiredHeadsetEnabled = true;
-            // when we have state, and this is 0, means no real headset, so, we cant offer a headset
-            if (intent.hasExtra("state") && intent.getIntExtra("state", 0) == 0){
-              wiredHeadsetEnabled = false;
-            }
-            if (wiredHeadsetEnabled) {
-                        hasWiredHeadset = true;
-                        updateAudioRoute();
-                        String deviceName = intent.getStringExtra("name");
-                        if (deviceName == null) {
-                            deviceName = "";
+                        boolean wiredHeadsetEnabled = true;
+                        // when we have state, and this is 0, means no real headset, so, we cant offer a headset
+                        if (intent.hasExtra("state") && intent.getIntExtra("state", 0) == 0) {
+                            wiredHeadsetEnabled = false;
                         }
-                        if (eventSink != null) {
-                            ConstraintsMap params = new ConstraintsMap();
-                            params.putString("event", "WiredHeadset");
-                            params.putBoolean("isPlugged", intent.getIntExtra("state", 0) == 1);
-                            params.putBoolean("hasMic", intent.getIntExtra("microphone", 0) == 1);
-                            params.putString("deviceName", deviceName);
-                            eventSink.success(params.toMap());
+                        if (wiredHeadsetEnabled) {
+                            hasWiredHeadset = true;
+                            updateAudioRoute();
+                            String deviceName = intent.getStringExtra("name");
+                            if (deviceName == null) {
+                                deviceName = "";
+                            }
+                            if (eventSink != null) {
+                                ConstraintsMap params = new ConstraintsMap();
+                                params.putString("event", "WiredHeadset");
+                                params.putBoolean("isPlugged", intent.getIntExtra("state", 0) == 1);
+                                params.putBoolean("hasMic", intent.getIntExtra("microphone", 0) == 1);
+                                params.putString("deviceName", deviceName);
+                                eventSink.success(params.toMap());
+                            }
                         }
-            }
                     } else {
                         hasWiredHeadset = false;
                     }
@@ -609,7 +655,7 @@ public class FlutterIncallManagerPlugin implements MethodCallHandler {
             audioDevices.clear();
             updateAudioRoute();
 
-      if (ringbackUriType != null && !ringbackUriType.isEmpty()) {
+            if (ringbackUriType != null && !ringbackUriType.isEmpty()) {
                 startRingback(ringbackUriType);
             }
         }
@@ -623,7 +669,7 @@ public class FlutterIncallManagerPlugin implements MethodCallHandler {
     public void stop(final String busytoneUriType) {
         if (audioManagerActivated) {
             stopRingback();
-      if (busytoneUriType != null && !busytoneUriType.isEmpty() && startBusytone(busytoneUriType)) {
+            if (busytoneUriType != null && !busytoneUriType.isEmpty() && startBusytone(busytoneUriType)) {
                 // play busytone first, and call this func again when finish
                 Log.d(TAG, "play busytone before stop InCallManager");
                 return;
@@ -1138,6 +1184,7 @@ public class FlutterIncallManagerPlugin implements MethodCallHandler {
         });
 
     }
+
     private Uri getRingtoneUri(final String _type) {
         final String fileBundle = "incallmanager_ringtone";
         final String fileBundleExt = "mp3";
@@ -1558,7 +1605,7 @@ public class FlutterIncallManagerPlugin implements MethodCallHandler {
             //promise.reject(new Exception("_requestPermission(): currentActivity is not attached"));
             return;
         }
-    int requestPermissionCode = getRandomInteger(1, 65535);
+        int requestPermissionCode = getRandomInteger(1, 65535);
         mRequestPermissionCodeTargetPermission.put(requestPermissionCode, targetPermission);
         ActivityCompat.requestPermissions(currentActivity, new String[]{targetPermission}, requestPermissionCode);
     }

@@ -7,6 +7,9 @@ dependencies:
   flutter:
     sdk: flutter
 
+environment:
+  sdk: '>2.12.0 <3.0.0'
+
 flutter:
   plugin:
     platforms:
@@ -15,6 +18,3 @@ flutter:
         pluginClass: FlutterIncallManagerPlugin
       ios:
         pluginClass: FlutterIncallManagerPlugin
-
-environment:
-  sdk: ">=2.12.0 <3.0.0"
